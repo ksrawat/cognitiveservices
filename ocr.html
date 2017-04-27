@@ -1,0 +1,108 @@
+<html>
+<head>
+    <title>JSSample</title>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+    <script src="http://jcrop-cdn.tapmodo.com/v0.9.12/js/jquery.Jcrop.min.js"></script>
+</head>
+<body>
+    <input type="file" id="filename" name="filename" onchange="readURL(this);"/>
+    <img id="imgPreview" src="#" alt="your image" style="width:200px;height: 150px" />
+    <br/>
+    <button id="btnclick">Extract Data</button>
+    </br>
+    <label id="lblResult"/>
+        <script type="text/javascript">
+            const data = {}, lines = [];
+            let docWidth = 0, docHeight = 0;
+            let averageVDist = 0, averageHDist = 0;
+            const hdist = (a, b) => (b.boundingBox.x - (a.boundingBox.x + a.boundingBox.width));
+
+
+            $(document).ready(function(){
+                $('#btnclick').click(function(){
+                   var apiKey = "aee47afa91fe4130b011d16dbf4e3789";
+                    var file = document.getElementById('filename').files[0];
+                    
+                    var apiUrl = "https://api.projectoxford.ai/vision/v1.0/ocr?language=unk&detectOrientation=true";
+                    var params = {
+                        // Request parameters
+                        "visualFeatures": "Tags",
+                        "language": "en",
+                    };
+              
+                $.ajax({
+                             url: apiUrl,
+                             beforeSend: function (xhrObj) {
+                                 xhrObj.setRequestHeader("Content-Type", "application/octet-stream");
+                                 xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key", apiKey);
+                             },
+                             type: "POST",
+                             data: file,
+                             processData: false
+                        })
+                         .done(function (response) {
+                            processResult(response);
+                         })
+                         .fail(function (error) {
+                            console.log(JSON.parse(error.responseText).message);
+                        });
+                })
+            });
+            function readURL(input) {
+
+              if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                  $('#imgPreview')
+                    .attr('src', e.target.result);
+
+                    var newImage = document.createElement('img');
+                    newImage.src = e.target.result; 
+                    $("imgPreview").innerHTML = newImage.outerHTML;
+
+                    //console.log($("imgPreview").innerHTML);
+                };
+                reader.readAsDataURL(input.files[0]);
+
+              }
+            }
+            function processResult(response){
+              console.log('response');
+              console.log(response)
+                $('#lblResult').text('');
+                
+                response.regions.forEach(region => {
+                    region.lines.reduce((arr, line) => {
+                      // collapse words into line
+                      line.words = line.words.map(word => word.text).join(' ')
+                                      // fix spacing issues
+                                      .replace(/\s+/g, ' ').trim()
+
+                      // destructure the bounding box, since we're looping anyways
+                      let [ x, y, width, height ] = line.boundingBox.split(',').map(i => parseInt(i, 10))
+                      line.boundingBox = { x, y, width, height }
+
+                      // update docWidth and docHeight
+                      docWidth = Math.max(docWidth, x + width)
+                      docHeight = Math.max(docHeight, y + height)
+
+                      // faster than concat
+                      arr.push(line)
+                      return arr
+                    }, lines)
+                })
+
+                // let's sort, so that our algorithms always work
+                // sorting is ascending y, then ascending x
+                lines
+                .sort((a, b) => a.boundingBox.x - b.boundingBox.x)
+                .sort((a, b) => a.boundingBox.y - b.boundingBox.y)
+
+                console.log(lines);
+
+                $('#lblResult').text(lines.map(l => l.words).join(','));
+
+            }
+        </script>
+</body>
+</html>
